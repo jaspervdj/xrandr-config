@@ -99,7 +99,7 @@ parseScreen = do
 parseMonitor :: Parser Monitor
 parseMonitor = do
     name      <- P.many P.alphaNum
-    _         <- P.space
+    _         <- space
     connected <- (== "connected") <$> P.many P.letter
     _         <- P.manyTill P.anyChar P.newline
     modes     <- concat <$> P.many parseModes
@@ -109,10 +109,10 @@ parseMonitor = do
 --------------------------------------------------------------------------------
 parseModes :: Parser [Mode]
 parseModes = P.try $ do
-    _      <- P.many1 P.space
+    _      <- P.many1 space
     (w, h) <- parseSize
-    modes  <- P.many $ do
-        _       <- P.many1 P.space
+    modes  <- P.many $ P.try $ do
+        _       <- P.many1 space
         refresh <- read <$> P.many1 (P.digit <|> P.char '.')
         active  <- (== '*') <$> P.anyChar
         native  <- (== '+') <$> P.anyChar
@@ -128,3 +128,9 @@ parseSize = do
     _      <- P.char 'x'
     height <- P.many P.digit
     return (read width, read height)
+
+
+--------------------------------------------------------------------------------
+-- | Space or tab, but no newline
+space :: Parser Char
+space = P.oneOf " \t"
