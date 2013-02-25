@@ -3,7 +3,7 @@ module Main where
 
 
 --------------------------------------------------------------------------------
-import           Control.Applicative ((<$>))
+import           Control.Applicative ((<$>), (<|>))
 import           Control.Monad       (forM_)
 import           Data.List           (isPrefixOf)
 import           System.Exit         (ExitCode (..))
@@ -35,6 +35,7 @@ main = do
 --------------------------------------------------------------------------------
 xrandr :: [String] -> IO String
 xrandr args = do
+    putStrLn $ unwords ("xrandr" : args)
     (_, Just xrandrOut, _, xrandrHandle) <- Process.createProcess $
         (Process.proc "xrandr" args) {Process.std_out = Process.CreatePipe}
     output   <- hGetContents $ xrandrOut
@@ -73,8 +74,13 @@ data Monitor = Monitor
 
 
 --------------------------------------------------------------------------------
-data Mode = Mode Int Int
-    deriving (Show)
+data Mode = Mode
+    { modeWidth   :: Int
+    , modeHeight  :: Int
+    , modeRefresh :: Double
+    , modeActive  :: Bool
+    , modeNative  :: Bool
+    } deriving (Show)
 
 
 --------------------------------------------------------------------------------
@@ -96,17 +102,23 @@ parseMonitor = do
     _         <- P.space
     connected <- (== "connected") <$> P.many P.letter
     _         <- P.manyTill P.anyChar P.newline
-    modes     <- P.many parseMode
+    modes     <- concat <$> P.many parseModes
     return $ Monitor name connected modes
 
 
 --------------------------------------------------------------------------------
-parseMode :: Parser Mode
-parseMode = P.try $ do
+parseModes :: Parser [Mode]
+parseModes = P.try $ do
     _      <- P.many1 P.space
     (w, h) <- parseSize
+    modes  <- P.many $ do
+        _       <- P.many1 P.space
+        refresh <- read <$> P.many1 (P.digit <|> P.char '.')
+        active  <- (== '*') <$> P.anyChar
+        native  <- (== '+') <$> P.anyChar
+        return (refresh, active, native)
     _      <- P.manyTill P.anyChar P.newline
-    return $ Mode w h
+    return [Mode w h r a n | (r, a, n) <- modes]
 
 
 --------------------------------------------------------------------------------
