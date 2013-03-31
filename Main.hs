@@ -5,8 +5,12 @@ module Main where
 --------------------------------------------------------------------------------
 import           Control.Applicative ((<$>), (<|>))
 import           Control.Monad       (forM_)
+import           Data.Char           (toLower)
 import           Data.List           (isPrefixOf)
+import           Data.Maybe          (listToMaybe)
+import           System.Environment  (getArgs, getProgName)
 import           System.Exit         (ExitCode (..))
+import           System.Exit         (exitFailure)
 import           System.IO           (hGetContents)
 import qualified System.Process      as Process
 import qualified Text.Parsec         as P
@@ -15,6 +19,23 @@ import qualified Text.Parsec         as P
 --------------------------------------------------------------------------------
 main :: IO ()
 main = do
+    -- Parse args
+    args <- getArgs
+    case args of
+        (str : _) -> case parseDir str of
+            Just dir -> setup dir
+            Nothing  -> usage
+        _         -> usage
+  where
+    usage = do
+        progName <- getProgName
+        putStrLn $ "Usage: " ++ progName ++ " <l|r>"
+        exitFailure
+
+
+--------------------------------------------------------------------------------
+setup :: Dir -> IO ()
+setup dir = do
     -- Quick and dirty main for now.
     Screen monitors <- xrandrQuery
     let primary = head [m | m <- monitors, "LVDS" `isPrefixOf` monitorName m]
@@ -27,9 +48,11 @@ main = do
             ]
 
     forM_ secondary $ \s -> xrandrRun
-        [ "--output", monitorName s
-        , "--auto", "--right-of", monitorName primary
-        ]
+        ["--output", monitorName s , "--auto", rel, monitorName primary]
+  where
+    rel = case dir of
+        L -> "--left-of"
+        R -> "--right-of"
 
 
 --------------------------------------------------------------------------------
@@ -134,3 +157,15 @@ parseSize = do
 -- | Space or tab, but no newline
 space :: Parser Char
 space = P.oneOf " \t"
+
+
+--------------------------------------------------------------------------------
+data Dir = L | R deriving (Show)
+
+
+--------------------------------------------------------------------------------
+parseDir :: String -> Maybe Dir
+parseDir str = case fmap toLower (listToMaybe str) of
+    Just 'r' -> Just R
+    Just 'l' -> Just L
+    _        -> Nothing
